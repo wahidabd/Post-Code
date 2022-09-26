@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css"
+      rel="stylesheet"
+    />
+    <title>Cari Kode Pos</title>
+  </head>
+  <body>
+    <main class="main">
+      <div class="container">
+        <div class="form-container">
+          <div class="form-title">
+            <h1>Pencarian Kode Pos</h1>
+          </div>
+          <form action="" class="form">
+            <div>
+              <label for="provinsi" class="formlabel">Provinsi</label>
+              <select name="provinsi" id="provinsi"></select>
+            </div>
+            <div>
+              <label for="kabupaten" class="formlabel">Kabupaten</label>
+              <select name="kabupaten" id="kabupaten"></select>
+            </div>
+            <div>
+              <label for="kecamatan" class="formlabel">Kecamatan</label>
+              <select name="kecamatan" id="kecamatan"></select>
+            </div>
+            <div>
+              <label for="kodepos">Kode Pos</label>
+              <input type="text" value="" class="kodeposres" disabled />
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </body>
+  <script
+    src="https://code.jquery.com/jquery-3.6.1.min.js"
+    integrity="sha256-o88AwQnZB+VDvE9tvIXrMQaPlFFSUTR+nldQm1LuPXQ="
+    crossorigin="anonymous"
+  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script>
+    let provinces = [];
+
+    $.ajax({
+      url: "https://ibnux.github.io/data-indonesia/provinsi.json",
+      success: function (datas) {
+        provinces = $.map(datas, function (obj) {
+          obj.id = obj.id;
+          obj.text = obj.nama;
+          return obj;
+        });
+      },
+      async: false,
+    });
+
+    $("#provinsi").select2({
+      placeholder: "Pilih Provinsi",
+      width: "100%",
+      data: provinces,
+    });
+
+    $("#provinsi").append(
+      $("<option selected></option>").val(null).text("Pilih Provinsi")
+    );
+
+    $("#kabupaten").select2({
+      placeholder: "Pilih Kota",
+      width: "100%",
+    });
+
+    $("#kecamatan").select2({
+      placeholder: "Pilih Kecamatan",
+      width: "100%",
+    });
+
+    $("#provinsi").on("change", function (e, data) {
+      $(".kodeposres").val("");
+      var idProv = $(this).val();
+      if(!idProv){
+        return;
+      }
+      var baseUrl =
+        "https://ibnux.github.io/data-indonesia/kabupaten/" + idProv + ".json";
+      var kota = [];
+      removeOptions(document.getElementById("kabupaten"));
+      $.ajax({
+        url: baseUrl,
+        dataType: "json",
+        success: function (datas) {
+          var kota = $.map(datas, function (obj) {
+            obj.id = obj.id;
+            obj.text = obj.nama;
+            return obj;
+          });
+          $("#kabupaten").select2({
+            placeholder: "Pilih Kota",
+            width: "100%",
+            data: kota,
+          });
+          var $nullOption = $("<option selected></option>")
+            .val(null)
+            .text("Pilih Kota/Kabupaten");
+          $("#kabupaten").append($nullOption).trigger("change");
+          if (data)
+            $("#kabupaten")
+              .val(data.kota)
+              .trigger("change", [{ kecamatan: data.kecamatan }]);
+        },
+        error: function (xhr, ajaxOptions, thrownError) {
+            console.log(xhr.responseText);
+        },
+      });
+    });
+
+    $("#kabupaten").on("change", function (e, data) {
+      $(".kodeposres").val("");
+      var idKota = $(this).val();
+      if(!idKota) {
+        return;
+      }
+      var baseUrl =
+        "https://ibnux.github.io/data-indonesia/kecamatan/" + idKota + ".json";
+      var kec = [];
+      removeOptions(document.getElementById("kecamatan"));
+      $.ajax({
+        url: baseUrl,
+        dataType: "json",
+        success: function (datas) {
+          var kec = $.map(datas, function (obj) {
+            obj.id = obj.id;
+            obj.text = obj.nama.toUpperCase();
+            return obj;
+          });
+          $("#kecamatan").select2({
+            placeholder: "Pilih Kecamatan",
+            width: "100%",
+            data: kec,
+          });
+          var $nullOption = $("<option selected></option>")
+            .val(null)
+            .text("Pilih Kecamatan");
+          $("#kecamatan").append($nullOption);
+        },
+        error: function (xhr, ajaxOptions, thrownError) {
+            console.log(xhr.responseText);
+        },
+      });
+    });
+
+    $("#kecamatan").on("change", function (e) {
+      $(".kodeposres").val("Menunggu respons server...");
+      let selectedProv = $("#provinsi").select2("data")[0].text;
+      let selectedKab = $("#kabupaten").select2("data")[0].text;
+      let selectedKecamatan = $(this).select2("data")[0].text;
+      selectedKab = selectedKab.includes("KAB. ")
+        ? selectedKab.replace("KAB. ", "")
+        : selectedKab.replace("KOTA ", "");
+      let kodepos = "";
+      if (selectedKecamatan) {
+        $.ajax({
+          url: encodeURI(
+            "https://kodepos.vercel.app/search?q=" +
+              selectedKecamatan +
+              " " +
+              selectedKab +
+              " " +
+              selectedProv
+          ),
+          success: function (datas) {
+            if (datas.status === true) {
+              $(".kodeposres").val(datas.data[0].postalcode);
+            }
+          },
+          async: true,
+        });
+      }
+    });
+
+    function removeOptions(selectbox) {
+      var i;
+      for (i = selectbox.options.length - 1; i >= 0; i--) {
+        selectbox.remove(i);
+      }
+    }
+  </script>
+</html>
